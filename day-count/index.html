@@ -5,6 +5,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Days Until</title>
   <style>
+    .site-nav {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  background: #102720;
+  border: 1px solid #ffffff30;
+  border-radius: 14px;
+}
+
+.site-nav a {
+  padding: 10px 14px;
+  border-radius: 9px;
+  color: #eef8f4;
+  text-decoration: none;
+  font: 14px system-ui, sans-serif;
+}
+
+.site-nav a:hover,
+.site-nav a[aria-current="page"] {
+  background: #b4eed5;
+  color: #12362b;
+}
+
+body {
+  padding-top: 90px;
+}
     * { box-sizing: border-box; }
 
     body {
