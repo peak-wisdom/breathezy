@@ -65,7 +65,7 @@ body {
 </form></section></div>
 <footer>Keep your breath gentle. If you feel uncomfortable or lightheaded, stop and breathe normally.</footer>
 </main>
-<script src="../timers.js"></script>
+<script src="../timers.js?v=3"></script>
 <script>
 (()=>{
 'use strict';
@@ -100,6 +100,7 @@ $('relaxPreset').addEventListener('click',()=>applyPreset([4,7,8,0],'4–7–8 b
 $('settingsForm').addEventListener('submit',e=>{e.preventDefault();if(!$('settingsForm').reportValidity())return;durations=ids.map(id=>Number($(id).value));cycleLimit=Number($('cycleLimit').value);sync();reset();$('notice').textContent=save()?'Your rhythm and cycle limit are saved. Press Start breathing when ready.':'Rhythm applied for this visit. Device storage is unavailable.';});
 $('defaults').addEventListener('click',()=>{durations=[...defaults];sync();reset();const saved=save();$('notice').textContent='Restored to 4 seconds per phase.'+(saved?'':' Device storage is unavailable.');});
 sync();$('start').textContent=complete?'Start again':running?'Pause':total>0?'Resume':'Start breathing';if(!running&&total>0&&!complete)$('status').textContent='Paused · take your time';render();
+window.addEventListener('still-timers-sync',()=>{const saved=timers.breathing;if(!saved)return;durations=[...saved.durations];cycleLimit=saved.cycleLimit;running=saved.running;total=saved.total;anchor=saved.anchor;complete=saved.complete;lastPhase=-1;sync();$('start').textContent=complete?'Start again':running?'Pause':total>0?'Resume':'Start breathing';if(!running&&!complete)$('status').textContent=total>0?'Paused · take your time':'Ready when you are';render();});
 window.addEventListener('pagehide',persist);
 window.addEventListener('pageshow',()=>{lastPhase=-1;render();});
 if(!timers.storageAvailable)$('notice').textContent='Browser storage is unavailable. Keep this page open to keep your session.';

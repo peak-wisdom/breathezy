@@ -5,6 +5,8 @@
   let state = {focus:freshFocus(), breathing:null};
   let storageAvailable = true;
   let loadedFocus = false;
+  const validFocus = f => f && ['focus','break'].includes(f.mode) && typeof f.running === 'boolean' && typeof f.completed === 'boolean' && Number.isFinite(f.remaining) && f.remaining >= 0 && Number.isFinite(f.deadline) && Number.isInteger(f.sessions) && f.sessions >= 0 && Number.isInteger(f.settings?.focus) && f.settings.focus >= 1 && f.settings.focus <= 120 && Number.isInteger(f.settings?.break) && f.settings.break >= 1 && f.settings.break <= 60;
+  const validBreathing = b => b && typeof b.running === 'boolean' && typeof b.complete === 'boolean' && Number.isFinite(b.total) && b.total >= 0 && Number.isFinite(b.anchor) && Array.isArray(b.durations) && b.durations.length === 4 && b.durations.every((n,i) => Number.isInteger(n) && n >= (i === 3 ? 0 : 1) && n <= 60) && Number.isInteger(b.cycleLimit) && b.cycleLimit >= 0 && b.cycleLimit <= 999;
   try {
     const saved = JSON.parse(localStorage.getItem(key) || sessionStorage.getItem(key));
     const f = saved?.focus;
@@ -29,6 +31,12 @@
     catch { storageAvailable = false; }
   }
   function tick() {
+    // Another already-open app tab may have started, paused or reset a timer.
+    try {
+      const latest = JSON.parse(localStorage.getItem(key));
+      if (validFocus(latest?.focus)) state.focus = latest.focus;
+      if (validBreathing(latest?.breathing)) state.breathing = latest.breathing;
+    } catch { /* Continue using in-memory timers when storage is unavailable. */ }
     const f = state.focus;
     if (f.running) {
       f.remaining = Math.max(0, f.deadline - Date.now());
@@ -50,6 +58,11 @@
   save();
   const listeners = new Set();
   function notify() { tick(); listeners.forEach(fn => fn()); }
+  window.addEventListener('storage', event => {
+    if (event.key !== key) return;
+    notify();
+    window.dispatchEvent(new Event('still-timers-sync'));
+  });
   function focusAction(action, settings) {
     tick();
     const f = state.focus;
