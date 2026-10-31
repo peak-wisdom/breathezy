@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Days Until</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: system-ui, sans-serif;
+      color: #eef8f4;
+      background: radial-gradient(circle at top, #214c45, #101c23);
+    }
+
+    main {
+      width: 100%;
+      max-width: 440px;
+      padding: 36px;
+      text-align: center;
+      background: #ffffff09;
+      border: 1px solid #ffffff20;
+      border-radius: 24px;
+    }
+
+    h1 { margin-top: 0; font-weight: 500; }
+    p { color: #b4c9c2; line-height: 1.6; }
+    label { display: block; margin: 24px 0 10px; }
+
+    input, button {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      font: inherit;
+    }
+
+    input {
+      color-scheme: dark;
+      background: #102720;
+      color: white;
+      border: 1px solid #ffffff40;
+      cursor: pointer;
+    }
+
+    button {
+      margin-top: 12px;
+      border: none;
+      background: #b4eed5;
+      color: #12362b;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover { background: #d0f8e7; }
+
+    input:focus-visible, button:focus-visible {
+      outline: 3px solid #b4eed5;
+      outline-offset: 4px;
+    }
+
+    #result { margin-top: 28px; min-height: 130px; }
+    #number { font-size: 76px; font-weight: 300; line-height: 1.2; }
+    #message { margin-top: 8px; }
+    #selectedDate { font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Something to look forward to.</h1>
+    <p>Select a future date to see how many days remain.</p>
+
+    <label for="targetDate">Choose your date</label>
+    <input type="date" id="targetDate" required>
+
+    <button type="button" id="reset">Reset</button>
+
+    <div id="result" role="status" aria-live="polite">
+      <div id="number">—</div>
+      <div id="message">Your countdown starts here.</div>
+      <p id="selectedDate"></p>
+    </div>
+  </main>
+
+  <script>
+    const input = document.getElementById("targetDate");
+    const number = document.getElementById("number");
+    const message = document.getElementById("message");
+    const selectedDate = document.getElementById("selectedDate");
+
+    // Use local calendar dates, avoiding daylight-saving time errors.
+    function calendarDay(date) {
+      return Date.UTC(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+      );
+    }
+
+    function setMinimumDate() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const day = String(today.getDate()).padStart(2, "0");
+      input.min = `${year}-${month}-${day}`;
+    }
+
+    function updateCountdown() {
+      setMinimumDate();
+
+      if (!input.value) {
+        number.textContent = "—";
+        message.textContent = "Your countdown starts here.";
+        selectedDate.textContent = "";
+        return;
+      }
+
+      const [year, month, day] = input.value.split("-").map(Number);
+      const target = new Date(year, month - 1, day);
+      const days = Math.round(
+        (calendarDay(target) - calendarDay(new Date())) / 86400000
+      );
+
+      selectedDate.textContent = target.toLocaleDateString(undefined, {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+
+      if (days < 0) {
+        number.textContent = "—";
+        message.textContent = "This date has passed. Choose a future date.";
+      } else if (days === 0) {
+        number.textContent = "0";
+        message.textContent = "It's today!";
+      } else {
+        number.textContent = days;
+        message.textContent = days === 1 ? "day to go" : "days to go";
+      }
+    }
+
+    // Open the native calendar where supported.
+    input.addEventListener("click", () => {
+      try {
+        input.showPicker?.();
+      } catch {
+        // The date field remains usable with the browser's native controls.
+      }
+    });
+
+    input.addEventListener("input", updateCountdown);
+
+    document.getElementById("reset").addEventListener("click", () => {
+      input.value = "";
+      updateCountdown();
+      input.focus();
+    });
+
+    // Keep the count current if the page stays open overnight.
+    setInterval(updateCountdown, 30000);
+    window.addEventListener("focus", updateCountdown);
+
+    updateCountdown();
+  </script>
+</body>
+</html>
