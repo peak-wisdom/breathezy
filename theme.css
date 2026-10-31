@@ -21,7 +21,8 @@ html[data-theme="light"] .site-nav{background:#ffffffd9;border-color:var(--line)
 html[data-theme="light"] .site-nav a{color:var(--ink)}
 html[data-theme="light"] .site-nav a:hover,
 html[data-theme="light"] .site-nav a[aria-current="page"]{background:#256b50;color:#fff}
-html[data-theme="light"] input{color-scheme:light;background:#fff;color:var(--ink);border-color:#93ad9d}
+html[data-theme="light"] input,
+html[data-theme="light"] select{color-scheme:light;background:#fff;color:var(--ink);border-color:#93ad9d}
 html[data-theme="light"] input::placeholder{color:#65786d}
 html[data-theme="light"] button{background:#e7f0e7;color:var(--ink);border:1px solid #93ad9d}
 html[data-theme="light"] button:hover{background:#d5e7d8}
