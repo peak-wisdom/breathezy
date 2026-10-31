@@ -52,7 +52,7 @@
 
     main {
       width: 100%;
-      max-width: 440px;
+      max-width: 820px;
       padding: 36px;
       text-align: center;
       background: #ffffff09;
@@ -104,136 +104,21 @@
       main { padding: 28px 18px; }
       .site-nav a { padding: 10px; font-size: 13px; }
     }
+.countdowns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;text-align:left;margin:28px 0}.countdown-card{padding:22px;border:1px solid #ffffff25;border-radius:20px;background:#ffffff05;min-width:0}.card-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}.card-heading h2{font-size:16px;font-weight:500;margin:0;color:#b4c9c2}.remove{width:auto;padding:8px 10px;margin:0;font-size:12px;font-weight:400;background:transparent;color:#b4c9c2;border:1px solid #ffffff30}.remove:hover{background:#ffffff10}.countdown-card label{font-size:13px;margin:18px 0 8px}.countdown-card input{min-width:0}.countdown-card input[type="text"]{cursor:text}.result{text-align:center;margin-top:24px}.day-number{font-size:60px;font-weight:300;line-height:1.2;font-variant-numeric:tabular-nums}.date-caption{font-size:12px;margin:10px 0 0}.day-message{margin-top:6px;color:#b4c9c2;font-size:14px}.add-date{display:inline-flex;gap:10px;align-items:center;justify-content:center;width:auto;min-width:180px}.plus{font-size:24px;line-height:1}.storage-note,.empty{font-size:13px}.undo{width:auto;padding:8px 12px;margin:0 0 12px;background:transparent;color:#b4eed5;border:1px solid #ffffff40}[hidden]{display:none!important}@media(max-width:640px){.countdowns{grid-template-columns:1fr}.countdown-card{padding:20px}.day-number{font-size:64px}}
 </style>
 </head>
 <body>
   <nav class="site-nav" aria-label="Main navigation"><a href="../">Home</a><a href="../breathing/">Breathing</a><a href="../day-count/" aria-current="page">Day Countdown</a><a href="../focus-timer/">Focus Timer</a><a href="../grounding/">Grounding</a></nav>
   <main>
     <h1>Something to look forward to.</h1>
-    <p>Select a future date to see how many days remain.</p>
-
-    <label for="targetDate">Choose your date</label>
-    <input type="date" id="targetDate" required>
-
-    <button type="button" id="reset">Reset</button>
-    <p id="storageNotice" style="font-size: 13px" role="status">Your selected date is saved in this browser.</p>
-
-    <div id="result" role="status" aria-live="polite">
-      <div id="number">—</div>
-      <div id="message">Your countdown starts here.</div>
-      <p id="selectedDate"></p>
-    </div>
+    <p>Big milestones or little moments. Give each date a name and keep it in view.</p>
+    <div id="countdowns" class="countdowns" aria-label="Your countdowns"></div>
+    <p id="empty" class="empty" hidden>No dates yet. Add something to look forward to.</p>
+    <button id="undo" class="undo" type="button" hidden>Undo remove</button><br>
+    <button id="addDate" class="add-date" type="button"><span class="plus" aria-hidden="true">+</span> Add date</button>
+    <p id="storageNotice" class="storage-note" role="status">Dates and labels save automatically in this browser.</p>
   </main>
 
-  <script>
-    const input = document.getElementById("targetDate");
-    const number = document.getElementById("number");
-    const message = document.getElementById("message");
-    const selectedDate = document.getElementById("selectedDate");
-    const storageKey = "still-countdown-date";
-    const storageNotice = document.getElementById("storageNotice");
-
-    function storageUnavailable() {
-      storageNotice.textContent = "Your date works for this visit. Browser storage is unavailable.";
-    }
-
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved && /^\d{4,}-\d{2}-\d{2}$/.test(saved)) input.value = saved;
-    } catch {
-      storageUnavailable();
-    }
-
-    function saveDate() {
-      try {
-        if (input.value) localStorage.setItem(storageKey, input.value);
-        else localStorage.removeItem(storageKey);
-        storageNotice.textContent = input.value
-          ? "Your selected date is saved in this browser."
-          : "Saved date cleared. Choose a date to start again.";
-      } catch {
-        storageUnavailable();
-      }
-    }
-
-    // Use local calendar dates, avoiding daylight-saving time errors.
-    function calendarDay(date) {
-      return Date.UTC(
-        date.getFullYear(),
-        date.getMonth(),
-        date.getDate()
-      );
-    }
-
-    function setMinimumDate() {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, "0");
-      const day = String(today.getDate()).padStart(2, "0");
-      input.min = `${year}-${month}-${day}`;
-    }
-
-    function updateCountdown() {
-      setMinimumDate();
-
-      if (!input.value) {
-        number.textContent = "—";
-        message.textContent = "Your countdown starts here.";
-        selectedDate.textContent = "";
-        return;
-      }
-
-      const [year, month, day] = input.value.split("-").map(Number);
-      const target = new Date(year, month - 1, day);
-      const days = Math.round(
-        (calendarDay(target) - calendarDay(new Date())) / 86400000
-      );
-
-      selectedDate.textContent = target.toLocaleDateString(undefined, {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-      });
-
-      if (days < 0) {
-        number.textContent = "—";
-        message.textContent = "This date has passed. Choose a future date.";
-      } else if (days === 0) {
-        number.textContent = "0";
-        message.textContent = "It's today!";
-      } else {
-        number.textContent = days;
-        message.textContent = days === 1 ? "day to go" : "days to go";
-      }
-    }
-
-    // Open the native calendar where supported.
-    input.addEventListener("click", () => {
-      try {
-        input.showPicker?.();
-      } catch {
-        // The date field remains usable with the browser's native controls.
-      }
-    });
-
-    input.addEventListener("input", () => {
-      saveDate();
-      updateCountdown();
-    });
-
-    document.getElementById("reset").addEventListener("click", () => {
-      input.value = "";
-      saveDate();
-      updateCountdown();
-      input.focus();
-    });
-
-    // Keep the count current if the page stays open overnight.
-    setInterval(updateCountdown, 30000);
-    window.addEventListener("focus", updateCountdown);
-
-    updateCountdown();
-  </script>
+  <script src="countdowns.js"></script>
 <script src="../timers.js?v=3"></script></body>
 </html>
