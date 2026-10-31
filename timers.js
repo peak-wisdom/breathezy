@@ -6,7 +6,7 @@
   let storageAvailable = true;
   let loadedFocus = false;
   try {
-    const saved = JSON.parse(sessionStorage.getItem(key));
+    const saved = JSON.parse(localStorage.getItem(key) || sessionStorage.getItem(key));
     const f = saved?.focus;
     if (f && ['focus','break'].includes(f.mode) && typeof f.running === 'boolean' && typeof f.completed === 'boolean' && Number.isFinite(f.remaining) && f.remaining >= 0 && Number.isFinite(f.deadline) && Number.isInteger(f.sessions) && f.sessions >= 0 && Number.isInteger(f.settings?.focus) && f.settings.focus >= 1 && f.settings.focus <= 120 && Number.isInteger(f.settings?.break) && f.settings.break >= 1 && f.settings.break <= 60) { state.focus = f; loadedFocus = true; }
     const b = saved?.breathing;
@@ -20,8 +20,12 @@
       }
     } catch { /* Defaults remain usable without device storage. */ }
   }
-  function save() {
-    try { sessionStorage.setItem(key, JSON.stringify(state)); }
+  function save(part) {
+    try {
+      const latest = JSON.parse(localStorage.getItem(key));
+      if (part && latest) state = {...latest, [part]:state[part]};
+      localStorage.setItem(key, JSON.stringify(state));
+    }
     catch { storageAvailable = false; }
   }
   function tick() {
@@ -31,17 +35,19 @@
       if (f.remaining === 0) {
         f.running = false; f.completed = true;
         if (f.mode === 'focus') f.sessions++;
-        save();
+        save('focus');
       }
     }
     const b = state.breathing;
     if (b?.running && b.cycleLimit > 0) {
       const limit = b.cycleLimit * b.durations.reduce((a,c) => a+c, 0) * 1000;
       if (b.total + Date.now() - b.anchor >= limit) {
-        b.total = limit; b.running = false; b.complete = true; save();
+        b.total = limit; b.running = false; b.complete = true; save('breathing');
       }
     }
   }
+  // Migrate existing open-tab sessions to durable browser storage.
+  save();
   const listeners = new Set();
   function notify() { tick(); listeners.forEach(fn => fn()); }
   function focusAction(action, settings) {
@@ -61,13 +67,13 @@
       }
       f.running = false; f.completed = false; f.remaining = f.settings[f.mode]*60000;
     }
-    save(); notify();
+    save('focus'); notify();
   }
   window.StillTimers = {
     get focus() { tick(); return state.focus; },
     get breathing() { tick(); return state.breathing; },
     get storageAvailable() { return storageAvailable; },
-    setBreathing(value) { state.breathing = value; save(); notify(); },
+    setBreathing(value) { state.breathing = value; save('breathing'); notify(); },
     focusAction,
     subscribe(fn) { listeners.add(fn); fn(); },
     format(ms) { const s = Math.ceil(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
@@ -81,6 +87,28 @@
   });
   document.addEventListener('visibilitychange', notify);
   setInterval(notify, 250);
+  // Keep timing edits as drafts without applying them to an active session.
+  document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('settingsForm') || document.getElementById('settings');
+    if (!form) return;
+    const draftKey = 'still-timing-draft-' + form.id;
+    const fields = Array.from(form.querySelectorAll('input[type="number"]'));
+    try {
+      const draft = JSON.parse(localStorage.getItem(draftKey));
+      if (draft && typeof draft === 'object') fields.forEach(field => {
+        if (typeof draft[field.id] === 'string') field.value = draft[field.id];
+      });
+    } catch { /* Applied settings remain usable without a saved draft. */ }
+    form.addEventListener('input', () => {
+      try { localStorage.setItem(draftKey, JSON.stringify(Object.fromEntries(fields.map(field => [field.id, field.value])))); }
+      catch { /* Saving applied settings reports unavailable storage separately. */ }
+    });
+    function clearDraft() {
+      try { localStorage.removeItem(draftKey); } catch {}
+    }
+    form.addEventListener('submit', () => { if (form.checkValidity()) clearDraft(); });
+    for (const id of ['defaults','boxPreset','relaxPreset']) document.getElementById(id)?.addEventListener('click', clearDraft);
+  });
   const focusPage = document.body.dataset.app === 'focus-timer';
   if (!focusPage) {
     const style = document.createElement('style');

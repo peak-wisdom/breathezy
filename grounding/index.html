@@ -26,6 +26,7 @@
     <p id="countStatus" role="status" aria-live="polite">0 of 5 noticed</p>
     <div class="controls"><button id="back" type="button" disabled>Back</button><button id="next" class="primary" type="button">Next sense</button></div>
     <p id="pace" class="note">Tap a circle for each thing you notice. Take your time, or move on whenever you like. You can skip any sense.</p>
+    <p id="saveStatus" class="note" role="status">Your progress is saved in this browser.</p>
     <button id="restart" class="restart" type="button">Start over</button>
   </main>
   <script>
@@ -41,6 +42,17 @@
       const $ = id => document.getElementById(id);
       let current = 0;
       let noticed = steps.map(step => Array(step.count).fill(false));
+      const progressKey = 'still-grounding-progress';
+      try {
+        const saved = JSON.parse(localStorage.getItem(progressKey));
+        if (saved && Number.isInteger(saved.current) && saved.current >= 0 && saved.current <= steps.length && Array.isArray(saved.noticed) && saved.noticed.length === steps.length && saved.noticed.every((row,i) => Array.isArray(row) && row.length === steps[i].count && row.every(value => typeof value === 'boolean'))) {
+          current = saved.current; noticed = saved.noticed;
+        }
+      } catch { $('saveStatus').textContent = 'Progress works for this visit. Browser storage is unavailable.'; }
+      function saveProgress() {
+        try { localStorage.setItem(progressKey, JSON.stringify({current, noticed})); }
+        catch { $('saveStatus').textContent = 'Progress works for this visit. Browser storage is unavailable.'; }
+      }
       function render(moveFocus = false) {
         const complete = current === steps.length;
         document.querySelectorAll('.steps li').forEach((node, index) => {
@@ -70,6 +82,7 @@
             button.addEventListener('click', () => {
               noticed[current][index] = !noticed[current][index];
               button.setAttribute('aria-pressed', String(noticed[current][index]));
+              saveProgress();
               updateCount();
             });
             $('counter').append(button);
@@ -81,9 +94,9 @@
       function updateCount() {
         $('countStatus').textContent = noticed[current].filter(Boolean).length + ' of ' + steps[current].count + ' noticed';
       }
-      $('next').addEventListener('click', () => {if (current < steps.length) {current++; render(true);}});
-      $('back').addEventListener('click', () => {if (current > 0) {current--; render(true);}});
-      $('restart').addEventListener('click', () => {current = 0; noticed = steps.map(step => Array(step.count).fill(false)); render(true);});
+      $('next').addEventListener('click', () => {if (current < steps.length) {current++; saveProgress(); render(true);}});
+      $('back').addEventListener('click', () => {if (current > 0) {current--; saveProgress(); render(true);}});
+      $('restart').addEventListener('click', () => {current = 0; noticed = steps.map(step => Array(step.count).fill(false)); saveProgress(); render(true);});
       render();
     })();
   </script>
