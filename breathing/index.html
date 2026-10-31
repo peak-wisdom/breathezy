@@ -65,6 +65,7 @@ body {
 </form></section></div>
 <footer>Keep your breath gentle. If you feel uncomfortable or lightheaded, stop and breathe normally.</footer>
 </main>
+<script src="../timers.js"></script>
 <script>
 (()=>{
 'use strict';
@@ -76,24 +77,32 @@ try{const saved=JSON.parse(localStorage.getItem('still-breathing'));if(Array.isA
 let cycleLimit=0;
 try{const saved=JSON.parse(localStorage.getItem('still-cycle-limit'));if(Number.isInteger(saved)&&saved>=0&&saved<=999)cycleLimit=saved;}catch{}
 let running=false,total=0,anchor=0,lastPhase=-1,complete=false;
+const timers=window.StillTimers;
+const restored=timers.breathing;
+if(restored){durations=[...restored.durations];cycleLimit=restored.cycleLimit;running=restored.running;total=restored.total;anchor=restored.anchor;complete=restored.complete;}
+function persist(){timers.setBreathing({durations:[...durations],cycleLimit,running,total,anchor,complete});}
 const reduced=matchMedia('(prefers-reduced-motion: reduce)');
 function position(ms){let seconds=ms/1000,cycleLength=durations.reduce((a,b)=>a+b,0),cycles=Math.floor(seconds/cycleLength),within=seconds%cycleLength,phase=0;while(phase<3&&within>=durations[phase]){within-=durations[phase++];}return{phase,fraction:within/durations[phase],remaining:Math.max(1,Math.ceil(durations[phase]-within)),cycles};}
-function render(){let ms=total+(running?performance.now()-anchor:0);const limitMs=cycleLimit*durations.reduce((a,b)=>a+b,0)*1000;if(cycleLimit>0&&ms>=limitMs){ms=total=limitMs;running=false;complete=true;$('start').textContent='Start again';$('status').textContent='Session complete · breathe naturally';}const p=complete?{phase:durations[3]===0?2:3,fraction:1,remaining:0,cycles:cycleLimit}:position(ms);$('phaseTitle').textContent=complete?'Complete':names[p.phase];$('count').textContent=complete?'✓':p.remaining;$('cycles').textContent=cycleLimit>0?p.cycles+' / '+cycleLimit:p.cycles;const s=Math.floor(ms/1000);$('elapsed').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+function render(){let ms=total+(running?Date.now()-anchor:0);const limitMs=cycleLimit*durations.reduce((a,b)=>a+b,0)*1000;if(cycleLimit>0&&ms>=limitMs){ms=total=limitMs;running=false;complete=true;$('start').textContent='Start again';$('status').textContent='Session complete · breathe naturally';persist();}const p=complete?{phase:durations[3]===0?2:3,fraction:1,remaining:0,cycles:cycleLimit}:position(ms);$('phaseTitle').textContent=complete?'Complete':names[p.phase];$('count').textContent=complete?'✓':p.remaining;$('cycles').textContent=cycleLimit>0?p.cycles+' / '+cycleLimit:p.cycles;const s=Math.floor(ms/1000);$('elapsed').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
 const nodes=$('phases').children;for(let i=0;i<4;i++)nodes[i].classList.toggle('active',i===p.phase);
 const scale=p.phase===0?.65+.35*p.fraction:p.phase===1?1:p.phase===2?1-.35*p.fraction:.65;$('orb').style.transform='scale('+(reduced.matches?.85:scale)+')';
 const edge=235,t=p.fraction,points=[[edge*t,0],[edge,edge*t],[edge*(1-t),edge],[0,edge*(1-t)]];const [x,y]=points[p.phase];$('dot').style.transform=`translate(${x-6}px,${y-6}px)`;
 if(running&&lastPhase!==p.phase){$('status').textContent=prompts[p.phase];lastPhase=p.phase;}
 }
-function reset(){running=false;complete=false;total=0;lastPhase=-1;$('start').textContent='Start breathing';$('status').textContent='Ready when you are';render();}
+function reset(){running=false;complete=false;total=0;lastPhase=-1;$('start').textContent='Start breathing';$('status').textContent='Ready when you are';persist();render();}
 function sync(){$('cycleLimit').value=cycleLimit;$('phases').children[3].hidden=durations[3]===0;$('phases').style.gridTemplateColumns='repeat('+(durations[3]===0?3:4)+',1fr)';$('boxPreset').setAttribute('aria-pressed',String(durations.every((n,i)=>n===defaults[i])));$('relaxPreset').setAttribute('aria-pressed',String(durations.every((n,i)=>n===[4,7,8,0][i])));ids.forEach((id,i)=>{$(id).value=durations[i];$('phases').children[i].querySelector('span').textContent=durations[i]+' seconds';});}
 function save(){try{localStorage.setItem('still-breathing',JSON.stringify(durations));localStorage.setItem('still-cycle-limit',JSON.stringify(cycleLimit));return true;}catch{return false;}}
-$('start').addEventListener('click',()=>{if(complete)reset();if(running){total+=performance.now()-anchor;running=false;$('start').textContent='Resume';$('status').textContent='Paused · take your time';}else{anchor=performance.now();running=true;lastPhase=-1;$('start').textContent='Pause';}render();});
+$('start').addEventListener('click',()=>{if(complete)reset();if(running){total+=Date.now()-anchor;running=false;$('start').textContent='Resume';$('status').textContent='Paused · take your time';}else{anchor=Date.now();running=true;lastPhase=-1;$('start').textContent='Pause';}persist();render();});
 $('reset').addEventListener('click',reset);
 function applyPreset(values,label){durations=[...values];sync();reset();$('notice').textContent=label+' applied. Press Start breathing when ready.'+(save()?'':' Device storage is unavailable.');}
 $('boxPreset').addEventListener('click',()=>applyPreset(defaults,'Box breathing'));
 $('relaxPreset').addEventListener('click',()=>applyPreset([4,7,8,0],'4–7–8 breathing'));
 $('settingsForm').addEventListener('submit',e=>{e.preventDefault();if(!$('settingsForm').reportValidity())return;durations=ids.map(id=>Number($(id).value));cycleLimit=Number($('cycleLimit').value);sync();reset();$('notice').textContent=save()?'Your rhythm and cycle limit are saved. Press Start breathing when ready.':'Rhythm applied for this visit. Device storage is unavailable.';});
 $('defaults').addEventListener('click',()=>{durations=[...defaults];sync();reset();const saved=save();$('notice').textContent='Restored to 4 seconds per phase.'+(saved?'':' Device storage is unavailable.');});
-sync();render();setInterval(()=>{if(running)render();},50);
+sync();$('start').textContent=complete?'Start again':running?'Pause':total>0?'Resume':'Start breathing';if(!running&&total>0&&!complete)$('status').textContent='Paused · take your time';render();
+window.addEventListener('pagehide',persist);
+window.addEventListener('pageshow',()=>{lastPhase=-1;render();});
+if(!timers.storageAvailable)$('notice').textContent='Browser storage is unavailable. Keep this page open to keep your session.';
+setInterval(()=>{if(running)render();},50);
 })();
 </script></body></html>
