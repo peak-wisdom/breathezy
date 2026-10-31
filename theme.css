@@ -53,3 +53,5 @@ html[data-theme="light"] #still-mini{background:#f5faf3;color:#193c30;border-col
 html[data-theme="light"] #still-mini button,
 html[data-theme="light"] #still-mini a{background:#fff;color:#256b50;border-color:#93ad9d}
 @media(max-width:640px){.theme-toolbar{padding:0 18px;flex-wrap:wrap}body:not([data-app="home"]) .theme-toolbar{padding:0}}
+html[data-theme="light"] .channel{background:#ffffffb8;border-color:var(--line)}
+html[data-theme="light"] input[type="range"]{background:transparent;accent-color:#256b50}
