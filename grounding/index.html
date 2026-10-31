@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Still • Grounding</title>
+  <style>
+    :root{color-scheme:dark;--ink:#eef8f4;--muted:#b4c9c2;--accent:#b4eed5}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;padding:24px;background:radial-gradient(circle at top,#214c45,#101c23);color:var(--ink);font-family:system-ui,sans-serif}
+    .site-nav{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:6px;margin:0 auto 32px;width:fit-content;max-width:100%;background:#102720;border:1px solid #ffffff30;border-radius:14px}
+    .site-nav a{padding:10px 12px;border-radius:9px;color:var(--ink);text-decoration:none;font-size:14px}.site-nav a:hover,.site-nav a[aria-current]{background:var(--accent);color:#12362b}
+    main{max-width:560px;margin:auto;padding:36px;background:#ffffff09;border:1px solid #ffffff20;border-radius:24px;text-align:center}.brand{font-size:12px;letter-spacing:.2em;color:var(--accent)}h1{font-size:clamp(28px,6vw,40px);font-weight:500;letter-spacing:-.04em}p{color:var(--muted);line-height:1.6}.steps{display:flex;justify-content:center;gap:10px;padding:0;list-style:none;margin:28px 0}.steps li{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;border:1px solid #ffffff30;color:var(--muted)}.steps [aria-current]{background:var(--accent);color:#12362b;border-color:var(--accent)}
+    h2{font-size:28px;font-weight:500;margin:24px 0 12px}#guidance{min-height:52px}.counter{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:28px 0}button{font:inherit;padding:12px 18px;border:1px solid #ffffff30;border-radius:12px;background:#102720;color:var(--ink);cursor:pointer}button:hover{background:#214c45}button[aria-pressed="true"],.primary{background:var(--accent);color:#12362b}.counter button{width:48px;height:48px;padding:0;border-radius:50%;font-variant-numeric:tabular-nums}.controls{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}button:disabled{opacity:.4;cursor:default}button:focus-visible,a:focus-visible,h2:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.note{font-size:13px}.restart{margin-top:24px;background:transparent}#countStatus{min-height:24px}[hidden]{display:none!important}@media(max-width:420px){body{padding:16px}main{padding:28px 18px}.site-nav a{font-size:13px;padding:9px}.steps{gap:8px}}
+  </style>
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation"><a href="../">Breathing</a><a href="../day-count/">Day Countdown</a><a href="../focus-timer/">Focus Timer</a><a href="./" aria-current="page">Grounding</a></nav>
+  <main>
+    <div class="brand">STILL / GROUNDING</div>
+    <h1>Come back to this moment.</h1>
+    <p>A gentle 5–4–3–2–1 exercise. Notice your surroundings, one sense at a time.</p>
+    <ol class="steps" aria-label="Exercise steps"><li aria-label="5 things you can see">5</li><li aria-label="4 things you can feel">4</li><li aria-label="3 things you can hear">3</li><li aria-label="2 things you can smell">2</li><li aria-label="1 thing you can taste">1</li></ol>
+    <h2 id="prompt" tabindex="-1">5 things you can see</h2>
+    <p id="guidance">Look around slowly. Notice a color, a shape, a shadow, or a small detail.</p>
+    <div id="counter" class="counter" role="group" aria-label="Things noticed"></div>
+    <p id="countStatus" role="status" aria-live="polite">0 of 5 noticed</p>
+    <div class="controls"><button id="back" type="button" disabled>Back</button><button id="next" class="primary" type="button">Next sense</button></div>
+    <p id="pace" class="note">Tap a circle for each thing you notice. Take your time, or move on whenever you like. You can skip any sense.</p>
+    <button id="restart" class="restart" type="button">Start over</button>
+  </main>
+  <script>
+    (() => {
+      'use strict';
+      const steps = [
+        {count:5, title:'5 things you can see', guidance:'Look around slowly. Notice a color, a shape, a shadow, or a small detail.'},
+        {count:4, title:'4 things you can feel', guidance:'Notice the floor beneath your feet, your clothes, the chair, or the air on your skin.'},
+        {count:3, title:'3 things you can hear', guidance:'Listen gently. Notice a nearby sound, a distant sound, or the sound of your own breath.'},
+        {count:2, title:'2 things you can smell', guidance:'Notice scents already around you. If nothing comes to mind, imagine a familiar scent or skip this sense.'},
+        {count:1, title:'1 thing you can taste', guidance:'Notice a taste already in your mouth, or imagine a familiar flavor. You can skip this sense, too.'}
+      ];
+      const $ = id => document.getElementById(id);
+      let current = 0;
+      let noticed = steps.map(step => Array(step.count).fill(false));
+      function render(moveFocus = false) {
+        const complete = current === steps.length;
+        document.querySelectorAll('.steps li').forEach((node, index) => {
+          if (index === current) node.setAttribute('aria-current', 'step');
+          else node.removeAttribute('aria-current');
+        });
+        $('counter').replaceChildren();
+        $('back').disabled = current === 0;
+        $('next').hidden = complete;
+        $('pace').hidden = complete;
+        $('restart').textContent = complete ? 'Practice again' : 'Start over';
+        if (complete) {
+          $('prompt').textContent = 'A moment for yourself.';
+          $('guidance').textContent = 'Let your attention settle here. Take your time before returning to your day.';
+          $('countStatus').textContent = 'Exercise complete.';
+        } else {
+          const step = steps[current];
+          $('prompt').textContent = step.title;
+          $('guidance').textContent = step.guidance;
+          $('next').textContent = current === steps.length - 1 ? 'Finish exercise' : 'Next sense';
+          for (let index = 0; index < step.count; index++) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = String(index + 1);
+            button.setAttribute('aria-label', 'Thing ' + (index + 1) + ' noticed');
+            button.setAttribute('aria-pressed', String(noticed[current][index]));
+            button.addEventListener('click', () => {
+              noticed[current][index] = !noticed[current][index];
+              button.setAttribute('aria-pressed', String(noticed[current][index]));
+              updateCount();
+            });
+            $('counter').append(button);
+          }
+          updateCount();
+        }
+        if (moveFocus) $('prompt').focus();
+      }
+      function updateCount() {
+        $('countStatus').textContent = noticed[current].filter(Boolean).length + ' of ' + steps[current].count + ' noticed';
+      }
+      $('next').addEventListener('click', () => {if (current < steps.length) {current++; render(true);}});
+      $('back').addEventListener('click', () => {if (current > 0) {current--; render(true);}});
+      $('restart').addEventListener('click', () => {current = 0; noticed = steps.map(step => Array(step.count).fill(false)); render(true);});
+      render();
+    })();
+  </script>
+</body>
+</html>
