@@ -120,6 +120,7 @@
     <input type="date" id="targetDate" required>
 
     <button type="button" id="reset">Reset</button>
+    <p id="storageNotice" style="font-size: 13px" role="status">Your selected date is saved in this browser.</p>
 
     <div id="result" role="status" aria-live="polite">
       <div id="number">—</div>
@@ -133,6 +134,31 @@
     const number = document.getElementById("number");
     const message = document.getElementById("message");
     const selectedDate = document.getElementById("selectedDate");
+    const storageKey = "still-countdown-date";
+    const storageNotice = document.getElementById("storageNotice");
+
+    function storageUnavailable() {
+      storageNotice.textContent = "Your date works for this visit. Browser storage is unavailable.";
+    }
+
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved && /^\d{4,}-\d{2}-\d{2}$/.test(saved)) input.value = saved;
+    } catch {
+      storageUnavailable();
+    }
+
+    function saveDate() {
+      try {
+        if (input.value) localStorage.setItem(storageKey, input.value);
+        else localStorage.removeItem(storageKey);
+        storageNotice.textContent = input.value
+          ? "Your selected date is saved in this browser."
+          : "Saved date cleared. Choose a date to start again.";
+      } catch {
+        storageUnavailable();
+      }
+    }
 
     // Use local calendar dates, avoiding daylight-saving time errors.
     function calendarDay(date) {
@@ -195,10 +221,14 @@
       }
     });
 
-    input.addEventListener("input", updateCountdown);
+    input.addEventListener("input", () => {
+      saveDate();
+      updateCountdown();
+    });
 
     document.getElementById("reset").addEventListener("click", () => {
       input.value = "";
+      saveDate();
       updateCountdown();
       input.focus();
     });
