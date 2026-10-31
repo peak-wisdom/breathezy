@@ -19,6 +19,7 @@
 </section>
 <section class="settings"><h2>Make it your own</h2><p>Use equal timings for box breathing, or create a rhythm that feels comfortable.</p>
 <form id="settingsForm">
+<div class="field"><label for="cycleLimit">Number of cycles<small>0 = continue until you pause</small></label><div class="input-wrap"><input id="cycleLimit" type="number" min="0" max="999" step="1" value="0" required>cycles</div></div>
 <div class="field"><label for="inhale">Inhale<small>Breathe in gently</small></label><div class="input-wrap"><input id="inhale" type="number" min="1" max="60" step="1" value="4" required>sec</div></div>
 <div class="field"><label for="holdIn">Hold after inhale<small>A soft pause at the top</small></label><div class="input-wrap"><input id="holdIn" type="number" min="1" max="60" step="1" value="4" required>sec</div></div>
 <div class="field"><label for="exhale">Exhale<small>Let the breath flow out</small></label><div class="input-wrap"><input id="exhale" type="number" min="1" max="60" step="1" value="4" required>sec</div></div>
@@ -36,21 +37,23 @@ const prompts=['Breathe in gently','Rest with a full breath','Breathe out slowly
 const $=id=>document.getElementById(id),defaults=[4,4,4,4];
 let durations=[...defaults];
 try{const saved=JSON.parse(localStorage.getItem('still-breathing'));if(Array.isArray(saved)&&saved.length===4&&saved.every(n=>Number.isInteger(n)&&n>=1&&n<=60))durations=saved;}catch{}
-let running=false,total=0,anchor=0,lastPhase=-1;
+let cycleLimit=0;
+try{const saved=JSON.parse(localStorage.getItem('still-cycle-limit'));if(Number.isInteger(saved)&&saved>=0&&saved<=999)cycleLimit=saved;}catch{}
+let running=false,total=0,anchor=0,lastPhase=-1,complete=false;
 const reduced=matchMedia('(prefers-reduced-motion: reduce)');
 function position(ms){let seconds=ms/1000,cycleLength=durations.reduce((a,b)=>a+b,0),cycles=Math.floor(seconds/cycleLength),within=seconds%cycleLength,phase=0;while(phase<3&&within>=durations[phase]){within-=durations[phase++];}return{phase,fraction:within/durations[phase],remaining:Math.max(1,Math.ceil(durations[phase]-within)),cycles};}
-function render(){const ms=total+(running?performance.now()-anchor:0),p=position(ms);$('phaseTitle').textContent=names[p.phase];$('count').textContent=p.remaining;$('cycles').textContent=p.cycles;const s=Math.floor(ms/1000);$('elapsed').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+function render(){let ms=total+(running?performance.now()-anchor:0);const limitMs=cycleLimit*durations.reduce((a,b)=>a+b,0)*1000;if(cycleLimit>0&&ms>=limitMs){ms=total=limitMs;running=false;complete=true;$('start').textContent='Start again';$('status').textContent='Session complete · breathe naturally';}const p=complete?{phase:3,fraction:1,remaining:0,cycles:cycleLimit}:position(ms);$('phaseTitle').textContent=complete?'Complete':names[p.phase];$('count').textContent=complete?'✓':p.remaining;$('cycles').textContent=cycleLimit>0?p.cycles+' / '+cycleLimit:p.cycles;const s=Math.floor(ms/1000);$('elapsed').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
 const nodes=$('phases').children;for(let i=0;i<4;i++)nodes[i].classList.toggle('active',i===p.phase);
 const scale=p.phase===0?.65+.35*p.fraction:p.phase===1?1:p.phase===2?1-.35*p.fraction:.65;$('orb').style.transform='scale('+(reduced.matches?.85:scale)+')';
 const edge=235,t=p.fraction,points=[[edge*t,0],[edge,edge*t],[edge*(1-t),edge],[0,edge*(1-t)]];const [x,y]=points[p.phase];$('dot').style.transform=`translate(${x-6}px,${y-6}px)`;
 if(running&&lastPhase!==p.phase){$('status').textContent=prompts[p.phase];lastPhase=p.phase;}
 }
-function reset(){running=false;total=0;lastPhase=-1;$('start').textContent='Start breathing';$('status').textContent='Ready when you are';render();}
-function sync(){ids.forEach((id,i)=>{$(id).value=durations[i];$('phases').children[i].querySelector('span').textContent=durations[i]+' seconds';});}
-function save(){try{localStorage.setItem('still-breathing',JSON.stringify(durations));return true;}catch{return false;}}
-$('start').addEventListener('click',()=>{if(running){total+=performance.now()-anchor;running=false;$('start').textContent='Resume';$('status').textContent='Paused · take your time';}else{anchor=performance.now();running=true;lastPhase=-1;$('start').textContent='Pause';}render();});
+function reset(){running=false;complete=false;total=0;lastPhase=-1;$('start').textContent='Start breathing';$('status').textContent='Ready when you are';render();}
+function sync(){$('cycleLimit').value=cycleLimit;ids.forEach((id,i)=>{$(id).value=durations[i];$('phases').children[i].querySelector('span').textContent=durations[i]+' seconds';});}
+function save(){try{localStorage.setItem('still-breathing',JSON.stringify(durations));localStorage.setItem('still-cycle-limit',JSON.stringify(cycleLimit));return true;}catch{return false;}}
+$('start').addEventListener('click',()=>{if(complete)reset();if(running){total+=performance.now()-anchor;running=false;$('start').textContent='Resume';$('status').textContent='Paused · take your time';}else{anchor=performance.now();running=true;lastPhase=-1;$('start').textContent='Pause';}render();});
 $('reset').addEventListener('click',reset);
-$('settingsForm').addEventListener('submit',e=>{e.preventDefault();if(!$('settingsForm').reportValidity())return;durations=ids.map(id=>Number($(id).value));sync();reset();$('notice').textContent=save()?'Your rhythm is saved. Press Start breathing when ready.':'Rhythm applied for this visit. Device storage is unavailable.';});
+$('settingsForm').addEventListener('submit',e=>{e.preventDefault();if(!$('settingsForm').reportValidity())return;durations=ids.map(id=>Number($(id).value));cycleLimit=Number($('cycleLimit').value);sync();reset();$('notice').textContent=save()?'Your rhythm and cycle limit are saved. Press Start breathing when ready.':'Rhythm applied for this visit. Device storage is unavailable.';});
 $('defaults').addEventListener('click',()=>{durations=[...defaults];sync();reset();const saved=save();$('notice').textContent='Restored to 4 seconds per phase.'+(saved?'':' Device storage is unavailable.');});
 sync();render();setInterval(()=>{if(running)render();},50);
 })();
