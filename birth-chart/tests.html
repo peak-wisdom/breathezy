@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>Birth chart calculation checks</title><h1>Birth chart calculation checks</h1><pre id="output">Running…</pre><script type="module">
+// SPDX-License-Identifier: AGPL-3.0-only
+import {birthInstant,navamsa,sign,lunarDetails,dashas,DAY} from './core.js';
+import {calculate,loadEngine} from './engine.js';
+import {reportSVG} from './report.js';
+const lines=[];let checks=0;
+function ok(test,message){if(!test)throw new Error(message);checks++;lines.push('PASS '+message);}
+function rejects(fn,message){let rejected=false;try{fn();}catch{rejected=true;}ok(rejected,message);}
+try{
+ok(birthInstant('1990-05-15','14:30','Asia/Kolkata').utc==='1990-05-15T09:00:00.000Z','India local time to UTC');
+rejects(()=>birthInstant('2024-03-10','02:30','America/New_York'),'DST gap rejected');
+rejects(()=>birthInstant('2024-11-03','01:30','America/New_York'),'Repeated clock time requires selection');
+ok(birthInstant('2024-11-03','01:30','America/New_York','earlier').utc==='2024-11-03T05:30:00.000Z','First DST occurrence');
+ok(birthInstant('2024-11-03','01:30','America/New_York','later').utc==='2024-11-03T06:30:00.000Z','Second DST occurrence');
+rejects(()=>birthInstant('2023-02-29','12:00','Etc/UTC'),'Invalid calendar date rejected');
+ok(sign(navamsa(0))===0&&sign(navamsa(30))===9&&sign(navamsa(60))===6,'Movable, fixed, dual Navamsa starting signs');
+ok(lunarDetails(0).name==='Ashwini'&&lunarDetails(359.99).pada===4,'Nakshatra endpoints');
+const birth=Date.UTC(2000,0,1),d=dashas(0,birth,365.25,birth);ok(d.birthLord==='Ketu'&&d.balanceYears===7,'Dasha balance at nakshatra start');
+ok(Math.abs(d.periods.at(-1).end-d.periods[0].start-120*365.25*DAY)<1,'Mahadashas span 120 years');
+for(const p of d.periods)ok(p.sub[0].start===p.start&&p.sub.at(-1).end===p.end&&p.sub.every((s,i)=>i===0||s.start===p.sub[i-1].end),p.lord+' subperiod boundaries');
+const {swe,lib}=await loadEngine(),jd=swe.dateToJulianDay(new Date('2000-01-01T12:00:00Z'));
+ok(jd===2451545,'J2000 Julian day');
+const sun=swe.calculatePosition(jd,lib.Planet.Sun,lib.CalculationFlag.MoshierEphemeris);
+ok(Math.abs(sun.longitude-280.3689)<0.005,'J2000 apparent tropical Sun sanity reference (0.005 degree tolerance)');
+const base={date:'1990-05-15',time:'14:30',zone:'Asia/Kolkata',latitude:19.076,longitude:72.8777,disambiguation:'reject',nodes:'mean',yearDays:365.25,name:'<test & title>',place:'Mumbai',style:'south'};
+for(const nodes of ['mean','true']){const c=await calculate({...base,nodes});ok(c.points.length===10&&c.points.every(p=>Number.isFinite(p.longitude)&&p.house>=1&&p.house<=12),nodes+' node chart has valid placements');ok(Math.abs(Math.abs(c.points[8].longitude-c.points[9].longitude)-180)<1e-8,nodes+' Rahu and Ketu opposite');for(const style of ['north','south']){const svg=reportSVG({...c,input:{...c.input,style}},0);ok(svg.includes('&lt;test &amp; title&gt;')&&svg.includes('width="2400" height="3260"'),style+' report dimensions and escaped personal text');}}
+for(const date of ['1900-01-01','2099-12-31']){const c=await calculate({...base,date,zone:'Australia/Sydney',latitude:-33.8688,longitude:151.2093});ok(c.points.every(p=>Number.isFinite(p.longitude)),date+' supported range / southern hemisphere');}
+lines.push('\n'+checks+' checks passed.');
+}catch(error){lines.push('FAIL '+error.stack);}
+document.getElementById('output').textContent=lines.join('\n');
+</script>
