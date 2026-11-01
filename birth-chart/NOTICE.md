@@ -1,6 +1,6 @@
 # Vedic birth-chart module
 
-This standalone chart module (core.js, engine.js, report.js, app.js and its interface) is distributed under AGPL-3.0-only. Its full source is available at https://github.com/peak-wisdom/zenmodeappkit/tree/main/birth-chart. This notice does not relicense unrelated apps in this repository.
+This chart module (core.js, engine.js, report.js, app.js, tests.html and its interface) is distributed under AGPL-3.0-only. Its full source is available at https://github.com/peak-wisdom/zenmodeappkit/tree/main/birth-chart. Shared theme and timer files retain their MIT license; the combined birth-chart application remains subject to applicable AGPL obligations. This notice does not relicense unrelated apps in this repository. See [license scope](../LICENSE_SCOPE.md) and [third-party notices](../THIRD_PARTY_NOTICES.md).
 
 Astronomical engine: @swisseph/browser 1.4.0, loaded from the pinned jsDelivr npm distribution. Source: https://github.com/swisseph-js/swisseph. Swiss Ephemeris is copyright Astrodienst AG, Switzerland, and licensed under AGPL-3.0 or an Astrodienst professional license. This module uses the AGPL version. The license is included in LICENSE.
 
