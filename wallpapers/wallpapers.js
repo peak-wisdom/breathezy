@@ -4,7 +4,7 @@
   const key='still-fractal-settings-v1';
   const ids=['fractal','palette','size','detail','zoom','rotation','shift','background','seed','amoled'];
   const sizes=['1920x1080','2560x1440','3840x2160','1080x1920','1440x2560','2160x3840','2048x2048'];
-  const fractals=['julia','mandelbrot','ship'], palettes=['nebula','ocean','ember','forest','mono'];
+  const fractals=['julia','mandelbrot','ship','tricorn','celtic','buffalo','cubic','newton'], palettes=['nebula','ocean','ember','forest','mono','aurora','sunset','candy','glacier','copper','lavender','rainbow'];
   let settings={fractal:'julia',palette:'nebula',size:matchMedia('(max-width:640px)').matches?'1080x1920':'1920x1080',detail:400,zoom:1,rotation:0,shift:0,background:'#090d20',seed:'42',amoled:false};
   let worker=null, generated=null, dirty=true, exporting=false;
   function valid(s) {
@@ -60,7 +60,7 @@
     $('progress').value=0;$('progress').hidden=false;
     $('status').textContent='Rendering '+width+' × '+height+' pixels…';
     try {
-      worker=new Worker('render-worker.js?v=2');controls();
+      worker=new Worker('render-worker.js?v=3');controls();
       worker.onmessage=event=>{
         const message=event.data;
         if(message.type==='progress'){$('progress').value=message.progress;return;}
@@ -86,7 +86,7 @@
   $('surprise').addEventListener('click',()=>{
     const values=crypto.getRandomValues(new Uint32Array(5));
     settings.fractal=fractals[values[0]%fractals.length];settings.palette=palettes[values[1]%palettes.length];
-    settings.seed=String(values[2]);settings.zoom=settings.fractal==='julia'?1:1+values[3]%4;
+    settings.seed=String(values[2]);settings.zoom=['julia','newton'].includes(settings.fractal)?1:1+values[3]%4;
     settings.rotation=values[4]%360;settings.shift=values[2]%360;
     sync();dirty=true;save();generate();
   });
