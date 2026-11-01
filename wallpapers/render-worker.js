@@ -14,7 +14,7 @@ self.onmessage = event => {
     let randomState = seed || 1;
     const random = () => {randomState = (Math.imul(1664525,randomState)+1013904223)>>>0;return randomState/4294967296;};
     const colors = palettes[s.palette];
-    const inside = [1,3,5].map(i=>parseInt(s.background.slice(i,i+2),16));
+    const inside = s.amoled ? [0,0,0] : [1,3,5].map(i=>parseInt(s.background.slice(i,i+2),16));
     const phase = s.shift/360 + random()*0.3;
     const julias = [[-.7,.27015],[-.8,.156],[.285,.01],[-.4,.6],[0,.8],[-.7269,.1889]];
     const jc = julias[Math.floor(random()*julias.length)];
@@ -41,6 +41,9 @@ self.onmessage = event => {
     const span = (s.fractal === 'julia' ? 3.4 : 3.2)/s.zoom;
     const scale=span/Math.min(width,height);
     const data=new Uint8ClampedArray(width*height*4);
+    const escapeValues=s.amoled ? new Float32Array(width*height) : null;
+    const histogram=s.amoled ? new Uint32Array(s.detail+1) : null;
+    let escaped=0;
     let lastProgress=-1;
     for (let y=0;y<height;y++) {
       const py=(y-height/2+.5)*scale;
@@ -58,9 +61,16 @@ self.onmessage = event => {
           zi=2*zr*zi+ci; zr=r2-i2+cr; r2=zr*zr; i2=zi*zi; n++;
         }
         const offset=(y*width+x)*4;
-        if(n>=s.detail) {data[offset]=inside[0];data[offset+1]=inside[1];data[offset+2]=inside[2];}
+        if(n>=s.detail) {
+          data[offset]=inside[0];data[offset+1]=inside[1];data[offset+2]=inside[2];
+          if(escapeValues)escapeValues[y*width+x]=-1;
+        }
         else {
           const smooth=n+1-Math.log2(Math.log2(Math.max(2,r2+i2))/2);
+          if(escapeValues){
+            const value=Math.max(0,Math.min(s.detail-1,smooth));
+            escapeValues[y*width+x]=value;histogram[Math.floor(value)]++;escaped++;
+          }
           const t=((smooth*.024+phase)%1+1)%1*colors.length;
           const index=Math.floor(t), f=t-index;
           // Smooth palette interpolation avoids hard color bands in PNG exports.
@@ -69,8 +79,28 @@ self.onmessage = event => {
         }
         data[offset+3]=255;
       }
-      const progress=Math.floor((y+1)/height*100);
+      const progress=Math.floor((y+1)/height*(s.amoled?90:100));
       if(progress!==lastProgress && progress%2===0){self.postMessage({type:'progress',progress});lastProgress=progress;}
+    }
+    if(escapeValues && escaped) {
+      // Keep the most detailed boundaries colorful; make broad quiet areas
+      // actual RGB(0,0,0), rather than merely darkening the whole wallpaper.
+      function quantile(fraction) {
+        let count=0;
+        for(let i=0;i<histogram.length;i++){count+=histogram[i];if(count>=escaped*fraction)return i+1;}
+        return s.detail;
+      }
+      const black=quantile(.6), bright=Math.max(black+1,quantile(.85));
+      for(let y=0;y<height;y++){
+        for(let x=0;x<width;x++){
+          const pixel=y*width+x, offset=pixel*4;
+          const t=Math.max(0,Math.min(1,(escapeValues[pixel]-black)/(bright-black)));
+          const strength=t*t*(3-2*t);
+          for(let c=0;c<3;c++)data[offset+c]=Math.round(data[offset+c]*strength);
+        }
+        const progress=90+Math.floor((y+1)/height*10);
+        if(progress!==lastProgress){self.postMessage({type:'progress',progress});lastProgress=progress;}
+      }
     }
     self.postMessage({type:'complete',width,height,pixels:data.buffer},[data.buffer]);
   } catch (error) {self.postMessage({type:'error',message:error.message});}

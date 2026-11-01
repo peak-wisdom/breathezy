@@ -2,15 +2,15 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const key='still-fractal-settings-v1';
-  const ids=['fractal','palette','size','detail','zoom','rotation','shift','background','seed'];
+  const ids=['fractal','palette','size','detail','zoom','rotation','shift','background','seed','amoled'];
   const sizes=['1920x1080','2560x1440','3840x2160','1080x1920','1440x2560','2160x3840','2048x2048'];
   const fractals=['julia','mandelbrot','ship'], palettes=['nebula','ocean','ember','forest','mono'];
-  let settings={fractal:'julia',palette:'nebula',size:matchMedia('(max-width:640px)').matches?'1080x1920':'1920x1080',detail:400,zoom:1,rotation:0,shift:0,background:'#090d20',seed:'42'};
+  let settings={fractal:'julia',palette:'nebula',size:matchMedia('(max-width:640px)').matches?'1080x1920':'1920x1080',detail:400,zoom:1,rotation:0,shift:0,background:'#090d20',seed:'42',amoled:false};
   let worker=null, generated=null, dirty=true, exporting=false;
   function valid(s) {
-    return s && fractals.includes(s.fractal) && palettes.includes(s.palette) && sizes.includes(s.size) && [160,400,800].includes(s.detail) && Number.isInteger(s.zoom) && s.zoom>=1 && s.zoom<=40 && ['rotation','shift'].every(id=>Number.isInteger(s[id]) && s[id]>=0 && s[id]<=360) && /^#[0-9a-f]{6}$/i.test(s.background) && /^\d{1,10}$/.test(s.seed);
+    return s && (s.amoled === undefined || typeof s.amoled === 'boolean') && fractals.includes(s.fractal) && palettes.includes(s.palette) && sizes.includes(s.size) && [160,400,800].includes(s.detail) && Number.isInteger(s.zoom) && s.zoom>=1 && s.zoom<=40 && ['rotation','shift'].every(id=>Number.isInteger(s[id]) && s[id]>=0 && s[id]<=360) && /^#[0-9a-f]{6}$/i.test(s.background) && /^\d{1,10}$/.test(s.seed);
   }
-  try {const saved=JSON.parse(localStorage.getItem(key));if(valid(saved))settings=saved;}
+  try {const saved=JSON.parse(localStorage.getItem(key));if(valid(saved))settings={...saved,amoled:saved.amoled===true};}
   catch {$('saveNotice').textContent='Settings work for this visit. Browser storage is unavailable.';}
   function save() {
     if(!valid(settings))return;
@@ -18,10 +18,10 @@
     catch {$('saveNotice').textContent='Settings work for this visit. Browser storage is unavailable.';}
   }
   function read() {
-    ids.forEach(id=>{settings[id]=['detail','zoom','rotation','shift'].includes(id)?Number($(id).value):$(id).value;});
+    ids.forEach(id=>{settings[id]=id==='amoled'?$(id).checked:['detail','zoom','rotation','shift'].includes(id)?Number($(id).value):$(id).value;});
   }
   function sync() {
-    ids.forEach(id=>{$(id).value=settings[id];});
+    ids.forEach(id=>{if(id==='amoled')$(id).checked=settings.amoled;else $(id).value=settings[id];});
     $('zoomValue').textContent=settings.zoom+'×';
     $('rotationValue').textContent=settings.rotation+'°';
     $('shiftValue').textContent=settings.shift+'°';
@@ -29,6 +29,7 @@
   function controls() {
     const busy=Boolean(worker)||exporting;
     [...ids,'generate','surprise','newSeed'].forEach(id=>{$(id).disabled=busy;});
+    $('background').disabled=busy||settings.amoled;
     $('cancel').hidden=!worker;
     $('download').disabled=busy||!generated||dirty;
     $('generate').textContent=worker?'Generating…':'Generate wallpaper';
@@ -59,7 +60,7 @@
     $('progress').value=0;$('progress').hidden=false;
     $('status').textContent='Rendering '+width+' × '+height+' pixels…';
     try {
-      worker=new Worker('render-worker.js');controls();
+      worker=new Worker('render-worker.js?v=2');controls();
       worker.onmessage=event=>{
         const message=event.data;
         if(message.type==='progress'){$('progress').value=message.progress;return;}
@@ -72,7 +73,7 @@
           context.putImageData(new ImageData(new Uint8ClampedArray(message.pixels),width,height),0,0);
           canvas.hidden=false;$('placeholder').hidden=true;
           generated={settings:snapshot,width,height};dirty=false;
-          $('imageInfo').textContent=width+' × '+height+' · PNG · Seed '+snapshot.seed;
+          $('imageInfo').textContent=width+' × '+height+' · PNG'+(snapshot.amoled?' · AMOLED':'')+' · Seed '+snapshot.seed;
           $('status').textContent='Your wallpaper is ready. Download the full-resolution PNG.';
           stop();
         } catch {fail();}
@@ -98,7 +99,7 @@
         exporting=false;controls();
         if(!blob){$('status').textContent='PNG export failed. Try generating a smaller wallpaper.';return;}
         const url=URL.createObjectURL(blob), link=document.createElement('a');
-        link.href=url;link.download='still-'+generated.settings.fractal+'-'+generated.settings.seed+'-'+generated.width+'x'+generated.height+'.png';
+        link.href=url;link.download='still-'+generated.settings.fractal+(generated.settings.amoled?'-amoled':'')+'-'+generated.settings.seed+'-'+generated.width+'x'+generated.height+'.png';
         document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
         $('status').textContent='PNG download requested. Your wallpaper is full resolution.';
       },'image/png');
