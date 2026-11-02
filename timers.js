@@ -5,6 +5,57 @@
   let state = {focus:freshFocus(), breathing:null};
   let storageAvailable = true;
   let loadedFocus = false;
+  const soundKey = 'still-timer-sound-v1';
+  const playedKey = 'still-timer-chimes-v1';
+  let soundEnabled = true, audio = null;
+  const playedHere = new Set(), pendingChimes = new Set();
+  try { soundEnabled = localStorage.getItem(soundKey) !== 'off'; } catch {}
+  function unlockSound() {
+    if (!soundEnabled) return;
+    try {
+      const Audio = window.AudioContext || window.webkitAudioContext;
+      if (!Audio) return;
+      if (!audio) audio = new Audio();
+      if (audio.state === 'suspended') audio.resume().catch(() => {});
+    } catch { /* The visual completion remains available without audio. */ }
+  }
+  document.addEventListener('pointerdown', unlockSound, {passive:true});
+  document.addEventListener('keydown', unlockSound);
+  function playChime() {
+    if (!soundEnabled || audio?.state !== 'running') return false;
+    try {
+      const start = audio.currentTime;
+      [523.25,659.25,783.99].forEach((frequency,i) => {
+        const oscillator = audio.createOscillator(), gain = audio.createGain();
+        const at = start + i * 0.24;
+        oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(frequency, at);
+        gain.gain.setValueAtTime(0, at);
+        gain.gain.linearRampToValueAtTime(0.18, at + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.001, at + 0.8);
+        oscillator.connect(gain); gain.connect(audio.destination);
+        oscillator.start(at); oscillator.stop(at + 0.85);
+        oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+      });
+      return true;
+    } catch { return false; }
+  }
+  function completionSound(kind, token, endedAt) {
+    // Do not play old alarms when returning long after a timer ended.
+    if (Date.now() - endedAt > 60000 || !soundEnabled || audio?.state !== 'running' || playedHere.has(token) || pendingChimes.has(token)) return;
+    pendingChimes.add(token);
+    const claim = () => {
+      let played = {};
+      try { played = JSON.parse(localStorage.getItem(playedKey)) || {}; } catch {}
+      if (played[kind] === token || playedHere.has(token)) return;
+      if (playChime()) {
+        playedHere.add(token); played[kind] = token;
+        try { localStorage.setItem(playedKey, JSON.stringify(played)); } catch {}
+      }
+    };
+    // Serialize claims so multiple open app tabs do not all ring together.
+    if (navigator.locks?.request) navigator.locks.request('still-timer-chime', claim).catch(() => {}).finally(() => pendingChimes.delete(token));
+    else { try { claim(); } finally { pendingChimes.delete(token); } }
+  }
   const validFocus = f => f && ['focus','break'].includes(f.mode) && typeof f.running === 'boolean' && typeof f.completed === 'boolean' && Number.isFinite(f.remaining) && f.remaining >= 0 && Number.isFinite(f.deadline) && Number.isInteger(f.sessions) && f.sessions >= 0 && Number.isInteger(f.settings?.focus) && f.settings.focus >= 1 && f.settings.focus <= 120 && Number.isInteger(f.settings?.break) && f.settings.break >= 1 && f.settings.break <= 60;
   const validBreathing = b => b && typeof b.running === 'boolean' && typeof b.complete === 'boolean' && Number.isFinite(b.total) && b.total >= 0 && Number.isFinite(b.anchor) && Array.isArray(b.durations) && b.durations.length === 4 && b.durations.every((n,i) => Number.isInteger(n) && n >= (i === 3 ? 0 : 1) && n <= 60) && Number.isInteger(b.cycleLimit) && b.cycleLimit >= 0 && b.cycleLimit <= 999;
   try {
@@ -50,8 +101,14 @@
     if (b?.running && b.cycleLimit > 0) {
       const limit = b.cycleLimit * b.durations.reduce((a,c) => a+c, 0) * 1000;
       if (b.total + Date.now() - b.anchor >= limit) {
+        b.completedAt = b.anchor + limit - b.total;
         b.total = limit; b.running = false; b.complete = true; save('breathing');
       }
+    }
+    if (f.completed && f.deadline > 0) completionSound('focus', 'focus:'+f.mode+':'+f.deadline, f.deadline);
+    if (b?.complete && b.cycleLimit > 0) {
+      const limit = b.cycleLimit * b.durations.reduce((a,c) => a+c, 0) * 1000;
+      if (Number.isFinite(b.completedAt)) completionSound('breathing', 'breathing:'+b.anchor+':'+limit, b.completedAt);
     }
   }
   // Migrate existing open-tab sessions to durable browser storage.
@@ -59,6 +116,9 @@
   const listeners = new Set();
   function notify() { tick(); listeners.forEach(fn => fn()); }
   window.addEventListener('storage', event => {
+    if (event.key === soundKey) {
+      soundEnabled = event.newValue !== 'off'; listeners.forEach(fn => fn()); return;
+    }
     if (event.key !== key) return;
     notify();
     window.dispatchEvent(new Event('still-timers-sync'));
@@ -88,6 +148,18 @@
     get storageAvailable() { return storageAvailable; },
     setBreathing(value) { state.breathing = value; save('breathing'); notify(); },
     focusAction,
+    get soundEnabled() { return soundEnabled; },
+    toggleSound() {
+      soundEnabled = !soundEnabled;
+      try { localStorage.setItem(soundKey, soundEnabled ? 'on' : 'off'); } catch {}
+      if (soundEnabled) unlockSound();
+      listeners.forEach(fn => fn());
+    },
+    async testSound() {
+      unlockSound();
+      try { if (audio?.state === 'suspended') await audio.resume(); } catch {}
+      return playChime();
+    },
     subscribe(fn) { listeners.add(fn); fn(); },
     format(ms) { const s = Math.ceil(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
   };
@@ -129,10 +201,11 @@
     document.head.append(style);
     const mini = document.createElement('aside');
     mini.id = 'still-mini'; mini.setAttribute('aria-label','Focus timer mini player');
-    mini.innerHTML = '<div id="mini-label"></div><strong id="mini-time" role="timer" aria-label="Time remaining"></strong><div class="mini-actions"><button id="mini-toggle" type="button">Pause</button><a id="mini-open">Open timer</a></div>';
+    mini.innerHTML = '<div id="mini-label"></div><strong id="mini-time" role="timer" aria-label="Time remaining"></strong><div class="mini-actions"><button id="mini-toggle" type="button">Pause</button><a id="mini-open">Open timer</a></div><button id="mini-sound" type="button" style="margin-top:10px">Sound on</button>';
     document.body.append(mini);
     document.getElementById('mini-open').href = new URL('focus-timer/', document.currentScript.src).href;
     document.getElementById('mini-toggle').addEventListener('click', () => focusAction('toggle'));
+    document.getElementById('mini-sound').addEventListener('click', () => window.StillTimers.toggleSound());
     window.StillTimers.subscribe(() => {
       const f = state.focus;
       const visible = f.running || f.completed || f.remaining < f.settings[f.mode]*60000;
@@ -140,6 +213,8 @@
       document.getElementById('mini-label').textContent = (f.mode === 'focus' ? 'Focus' : 'Break') + (f.completed ? ' complete' : f.running ? ' in progress' : ' paused');
       document.getElementById('mini-time').textContent = window.StillTimers.format(f.remaining);
       document.getElementById('mini-toggle').textContent = f.completed ? 'Start again' : f.running ? 'Pause' : 'Resume';
+      document.getElementById('mini-sound').textContent = soundEnabled ? 'Sound on' : 'Sound off';
+      document.getElementById('mini-sound').setAttribute('aria-pressed', String(soundEnabled));
     });
   }
 })();
